@@ -1,0 +1,171 @@
+---
+title: "Progetto finale"
+author: "Abdula Kalus, Gabriele Gianuzzo, Giacomo Ballarin, Kevin Cazzolato"
+date: "2023-06-13"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dataset di riferimento
+
+```{r, include=FALSE}
+    setwd("C:/Users/abdul/Desktop/DA_progetto_finale")
+    pollution <- read.csv("Dataset/pollution.csv", stringsAsFactors = T)
+    library(ggplot2)
+    library("ellipse")
+    library("corrplot")
+    library("grid")
+    library("cowplot")
+    theme_set(theme_minimal() + theme(
+            
+        plot.title = element_text(color="#333333", size=14, face="bold", 
+                                      margin = margin(5, 5, 20, 5), hjust = 0.5),
+            
+        axis.title.x = element_text(color="#333333", size=10, face="bold", 
+                                        margin = margin(20, 5, 5, 5)),
+            
+        axis.title.y = element_text(color="#333333", size=10, face="bold", 
+                                        margin = margin(5, 20, 5, 5))
+    ))
+    
+```
+
+Il dataset di riferimento è pollution.csv, il quale contiene 16 variabili e 60 osservazioni; di seguito sono riportate le varibiali presenti nel dataset con una breve descrizione:  
+
+- PREC:   Precipitazioni medie annue in pollici
+
+- JANT:   Temperatura media di gennaio in gradi F
+
+- JULT:   Temperatura media di giugno in gradi F
+
+- OVR65:  Percentuale della popolazione SMSA del 1960 di 65 anni o più
+
+- POPN:   Dimensione media delle famiglie
+
+- EDUC:   Anni scolastici medi completati da persone di età superiore ai 22 anni
+
+- HOUS:   Percentuale di unità abitative sane e con tutti i servizi
+
+- DENS:   Popolazione per miglio quadro in aree urbanizzate, 1960
+
+- NONW:   Percentuale popolazione non bianca nelle aree urbanizzate, 1960
+
+- WWDRK:  Percentuale di occupati nelle professioni impiegatizie
+
+- POOR:   Percentuale di famiglie con reddito < $3000
+
+- HC:     Potenziale di inquinamento relativo ad idrocarburi
+
+- NOX:    Potenziale di inquinamento relativo ad ossidi nitrici
+
+- SO2:    Potenziale di inquinamento relativo ad anidride solforosa
+
+- HUMID:  Percentuale annua di umidità relativa alle ore 13
+
+- MORT:   Tasso di mortalità totale corretto in base all'età per 100.000
+
+
+
+## Analisi preliminare
+Nell’ottica di voler stimare un modello di regressione lineare che consideri la variabile MORT (tasso di mortalità) come variabile risposta, verranno considerati vari indici, i quali potranno fornirci infromazioni riguardo alla correlazione della variabili presenti nel dataset.
+Analizziamo quindi innanzitutto la matrice di correlazione per le variabili quantitative
+
+```{r, echo = F}
+    P=cor(pollution)
+    corrplot(P, method = 'square', type = 'lower', diag = FALSE)
+```
+
+Si può osservare dalla matrice di correlazione che possono essere considerate più varibili esplciative in funzione 
+della variabile risposta MORT, alcune di esse sono PREC, POOR, SO2 ma quella che risalta di più è NONW.
+Anche senza matrice di correlazione si poteva intuire che la varibaile POOR rappresentande le famiglie con un reddito basso
+fosse collegata con la varibile MORT.
+
+## Verso il modello lineare
+
+Analizziamo ora un primo modello lineare tra MORT e NONW.
+
+```{r, include = TRUE, echo = FALSE}
+nonwmodel <- lm(mort ~ nonw, data = pollution)
+summary(nonwmodel)
+ggplot(data = pollution, mapping = aes(nonw, mort)) +
+    geom_point(color="#0072B2") +
+    geom_smooth(aes(x=nonw, y=mort), method = "lm", se = F, col="red", formula = y ~ x) +
+    xlab("Non bianchi") +
+    ylab("Tasso mortalità") +
+    ggtitle("Diagramma di dispersione non bianchi - tasso mortalità") +
+    scale_fill_brewer(palette="Spectral")
+    
+```
+
+Dall'indice R^2 si può stabilire che questo è un huon modello essendo (~40%)
+
+Modello lineare con bmi e charges:
+
+```{r, include = TRUE, echo = FALSE}
+poormodel <- lm(mort ~ poor + nonw, data = pollution)
+summary(poormodel)
+ggplot(data = pollution, mapping = aes(poor, mort)) +
+    geom_point(color="#0072B2") +
+    xlab("% famiglie reddito < 3000$") +
+    ylab("Tasso mortalità") +
+  ggtitle("Scatterplot indice di % famigli 3000$ - tasso mortalità")
+
+```
+
+```{r, include = TRUE, echo = FALSE}
+precmodel <- lm(mort ~ prec, data = pollution)
+summary(precmodel)
+ggplot(data = pollution, mapping = aes(prec, mort)) +
+    geom_point(color="#0072B2") +
+    xlab("Precipitazioni medie annue in pollici") +
+    ylab("Tasso mortalità") +
+  ggtitle("Scatterplot indice di precipitazioni medie annue in pollici - tasso mortalità")
+
+```
+
+```{r, include = TRUE, echo = FALSE}
+so2model <- lm(mort ~ so2 + prec, data = pollution)
+summary(so2model)
+ggplot(data = pollution, mapping = aes(so2, mort)) +
+    geom_point(color="#0072B2") +
+    xlab("so2") +
+    ylab("Tasso mortalità") +
+  ggtitle("Scatterplot indice di so2 - tasso mortalità")
+
+```
+
+```{r, include = TRUE, echo = FALSE}
+jultmodel <- lm(mort ~ jult, data = pollution)
+summary(jultmodel)
+ggplot(data = pollution, mapping = aes(jult, mort)) +
+    geom_point(color="#0072B2") +
+    xlab("jult") +
+    ylab("Tasso mortalità") +
+  ggtitle("Scatterplot indice di jult - tasso mortalità")
+
+jantmodel <- lm(mort ~ jant , data = pollution)
+
+ggplot(data = pollution, mapping = aes(jant, mort)) +
+    geom_point(color="#0072B2") +
+    xlab("jant") +
+    ylab("Tasso mortalità") +
+  ggtitle("Scatterplot indice di jant - tasso mortalità")
+
+
+```
+
+```{r, include = TRUE, echo = FALSE}
+densmodel <- lm(mort ~ educ+poor, data = pollution)
+summary(densmodel)
+ggplot(data = pollution, mapping = aes(educ, mort)) +
+    geom_point(color="#0072B2") +
+    xlab("dens") +
+    ylab("Tasso mortalità") +
+  ggtitle("Scatterplot indice di dens - tasso mortalità")
+
+```
