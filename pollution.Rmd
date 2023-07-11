@@ -1,22 +1,24 @@
 ---
-title: "Progetto finale"
-author: "Abdula Kalus, Gabriele Gianuzzo, Giacomo Ballarin, Kevin Cazzolato"
-date: "2023-06-13"
-output:
-  html_document: default
-  pdf_document: default
+    title: "Pollution"
+    author: "Abdula Kalus, Gabriele Gianuzzo, Giacomo Ballarin, Kevin Cazzolato"
+    date: "2023-07"
+    output:
+    html_document: default
+    pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Dataset di riferimento
-
 ```{r, include=FALSE}
     setwd("C:/Users/abdul/Desktop/DA_progetto_finale")
     pollution <- read.csv("Dataset/pollution.csv", stringsAsFactors = T)
+    str(pollution)
+    dim(pollution)
     library(ggplot2)
+    library(GGally)
+    library(MASS)
     library("ellipse")
     library("corrplot")
     library("grid")
@@ -33,9 +35,30 @@ knitr::opts_chunk$set(echo = TRUE)
                                         margin = margin(5, 20, 5, 5))
     ))
     
-```
+    pollution$ovr65=cut(pollution$ovr65, breaks = c(5,7.5,9.5,12))
+    levels(pollution$ovr65) = c("pB", "pM", "pA")
+    pollution$ovr65=as.factor(pollution$ovr65)
+    
+    pollution$popn=cut(pollution$popn, breaks = c(2,3.3,4))
+    levels(pollution$popn) = c("2-3", "3-4")
+    pollution$popn=as.factor(pollution$popn)
+    
+    pollution$educ=cut(pollution$educ, breaks = c(0,10.5,11.5,Inf))
+    levels(pollution$educ) = c("10-", "11", "12+")
+    pollution$educ=as.factor(pollution$educ)
+    
+    pollution$nox[48]=15
+    pollution$nox[29]=15
+    pollution$hc[47]=19
+    pollution$hc[48]=19
+    pollution$hc[49]=19
+    pollution$hc[29]=19
+```    
 
-Il dataset di riferimento è pollution.csv, il quale contiene 16 variabili e 60 osservazioni; di seguito sono riportate le varibiali presenti nel dataset con una breve descrizione:  
+## Introduzione
+
+Si vuole studiare il dataset "pollution" contenente i tassi di mortalità e diversi fattori ambientali di 60 aree metropolitane statunitensi.\
+Il dataset è composto da 16 variabili e 60 osservazioni; di seguito sono riportate le varibiali presenti nel dataset con una breve descrizione:  
 
 - PREC:   Precipitazioni medie annue in pollici
 
@@ -55,7 +78,7 @@ Il dataset di riferimento è pollution.csv, il quale contiene 16 variabili e 60 
 
 - NONW:   Percentuale popolazione non bianca nelle aree urbanizzate, 1960
 
-- WWDRK:  Percentuale di occupati nelle professioni impiegatizie
+- WWDRK:  Percentuale di lavoratori che svolgono professioni intellettuali più remunerative
 
 - POOR:   Percentuale di famiglie con reddito < $3000
 
@@ -69,103 +92,158 @@ Il dataset di riferimento è pollution.csv, il quale contiene 16 variabili e 60 
 
 - MORT:   Tasso di mortalità totale corretto in base all'età per 100.000
 
-
+L'obbiettivo è costruire un modello di regressione che consideri la variabile MORT (tasso di mortalità) come variabile
+rispsota, ovvero trovare un modello che mi permetta di aprossimare il tasso di mortalità in base ai fattori ambientali delle aree metropolitane.
 
 ## Analisi preliminare
-Nell’ottica di voler stimare un modello di regressione lineare che consideri la variabile MORT (tasso di mortalità) come variabile risposta, verranno considerati vari indici, i quali potranno fornirci infromazioni riguardo alla correlazione della variabili presenti nel dataset.
-Analizziamo quindi innanzitutto la matrice di correlazione per le variabili quantitative
+Durante l'analisi dei valori delle osservazioni del dataset è stato ritenuto opportuno modificare le seguenti variabili da numeriche a categoriali:
+
+
+- ovr65, 3 livelli trovati; percentuale bassa pB, percentuale media pM, percentuale alta pA
+
+- popn, 2 livelli trovati; da 2-3 figli in media e da 3-4 figli in media
+
+- educ, 3 livelli trovati; 10-, 11, 12+
+
+\
+Inoltre i valori anomali trovati nelle variabili Nox e Hc sono stati sostituiti con il valore medio delle altre osservazioni.
+\
+Nell’ottica di voler stimare un modello di regressione lineare che consideri la variabile MORT (tasso di mortalità) come variabile risposta, analizziamo la matrice di correlazione per le variabili quantitative, raffigurando i le informazioni sotto forma di una tabella triangolare, che mostra i coefficienti di correlazione tra coppie di variabili.\
+Questo ci permette di valutare immediatamente un'eventuale correlazione tra le variabili.
 
 ```{r, echo = F}
-    P=cor(pollution)
+    P=cor(pollution[,c("prec", "jant", "jult", "hous", "dens", "nonw", "wwdrk", "poor", "hc", "nox", "so2", "humid", "mort")])
     corrplot(P, method = 'square', type = 'lower', diag = FALSE)
 ```
 
-Si può osservare dalla matrice di correlazione che possono essere considerate più varibili esplciative in funzione 
-della variabile risposta MORT, alcune di esse sono PREC, POOR, SO2 ma quella che risalta di più è NONW.
-Anche senza matrice di correlazione si poteva intuire che la varibaile POOR rappresentande le famiglie con un reddito basso
-fosse collegata con la varibile MORT.
-
-## Verso il modello lineare
-
-Analizziamo ora un primo modello lineare tra MORT e NONW.
-
+### Modelli lineari semplici
+1) modello lineare tra nonw e mort.
 ```{r, include = TRUE, echo = FALSE}
-nonwmodel <- lm(mort ~ nonw, data = pollution)
-summary(nonwmodel)
+m1 <- lm(mort ~ nonw, data = pollution)
 ggplot(data = pollution, mapping = aes(nonw, mort)) +
     geom_point(color="#0072B2") +
-    geom_smooth(aes(x=nonw, y=mort), method = "lm", se = F, col="red", formula = y ~ x) +
     xlab("Non bianchi") +
-    ylab("Tasso mortalità") +
-    ggtitle("Diagramma di dispersione non bianchi - tasso mortalità") +
+    ylab("Tasso di mortalità") +
+    ggtitle("Diagramma di dispersione non bianchi - tasso di mortalità") +
     scale_fill_brewer(palette="Spectral")
-    
+summary(m1)
 ```
 
-Dall'indice R^2 si può stabilire che questo è un huon modello essendo (~40%)
+Da questo primo modello lineare troviamo un indice R^2 molto alto (~40%), quindi si potrebbe pensare che sia un buon modello per spiegare il tasso di mortalità.
 
-Modello lineare con bmi e charges:
-
+2) modello lineare tra nonw e mort.
 ```{r, include = TRUE, echo = FALSE}
-poormodel <- lm(mort ~ poor + nonw, data = pollution)
-summary(poormodel)
-ggplot(data = pollution, mapping = aes(poor, mort)) +
-    geom_point(color="#0072B2") +
-    xlab("% famiglie reddito < 3000$") +
-    ylab("Tasso mortalità") +
-  ggtitle("Scatterplot indice di % famigli 3000$ - tasso mortalità")
-
-```
-
-```{r, include = TRUE, echo = FALSE}
-precmodel <- lm(mort ~ prec, data = pollution)
-summary(precmodel)
+m2 <- lm(mort ~ prec, data = pollution)
 ggplot(data = pollution, mapping = aes(prec, mort)) +
     geom_point(color="#0072B2") +
-    xlab("Precipitazioni medie annue in pollici") +
-    ylab("Tasso mortalità") +
-  ggtitle("Scatterplot indice di precipitazioni medie annue in pollici - tasso mortalità")
-
+    xlab("Precipitazione") +
+    ylab("Tasso di mortalità") +
+    ggtitle("Diagramma di dispersione precipitazione - tasso di mortalità") +
+    scale_fill_brewer(palette="Spectral")
+summary(m2)
 ```
+Dal secondo modello lineare troviamo un indice R^2 (~25%), osservando che la variabile prec è significativa e quindi verrà tenuta in considerazione per un eventuale modello multivariato.
 
+3) modello lineare tra so2 e mort.\
 ```{r, include = TRUE, echo = FALSE}
-so2model <- lm(mort ~ so2 + prec, data = pollution)
-summary(so2model)
+m3 <- lm(mort ~ so2, data = pollution)
 ggplot(data = pollution, mapping = aes(so2, mort)) +
     geom_point(color="#0072B2") +
-    xlab("so2") +
-    ylab("Tasso mortalità") +
-  ggtitle("Scatterplot indice di so2 - tasso mortalità")
-
+    xlab("SO2") +
+    ylab("Tasso di mortalità") +
+    ggtitle("Diagramma di dispersione SO2 - tasso di mortalità") +
+    scale_fill_brewer(palette="Spectral")
+summary(m3)
 ```
+Dal terzo modello lineare troviamo un indice R^2 (~17%), osservando che la variabile so2 è significativa e quindi verrà tenuta in considerazione per un eventuale modello multivariato.
 
+4) modello lineare tra popn e mort.
 ```{r, include = TRUE, echo = FALSE}
-jultmodel <- lm(mort ~ jult, data = pollution)
-summary(jultmodel)
-ggplot(data = pollution, mapping = aes(jult, mort)) +
-    geom_point(color="#0072B2") +
-    xlab("jult") +
-    ylab("Tasso mortalità") +
-  ggtitle("Scatterplot indice di jult - tasso mortalità")
-
-jantmodel <- lm(mort ~ jant , data = pollution)
-
-ggplot(data = pollution, mapping = aes(jant, mort)) +
-    geom_point(color="#0072B2") +
-    xlab("jant") +
-    ylab("Tasso mortalità") +
-  ggtitle("Scatterplot indice di jant - tasso mortalità")
-
-
+m4 <- lm(mort ~ popn, data = pollution)
+ggplot(data = pollution, mapping = aes(popn, mort, fill=popn)) +
+    geom_boxplot(color="#333333", alpha=0.7) +
+    theme_classic()  +
+    xlab("Densità delle famiglie") +
+    ylab("Tasso di mortalità") +
+    ggtitle("Boxplot densità delle famiglie - tasso di mortalità") +
+    scale_fill_brewer(palette="Spectral")+
+    theme_minimal() + 
+    theme(
+        plot.title = element_text(color="#333333", size=14, face="bold", margin = margin(5, 5, 20, 5), hjust = 0.5),
+        axis.title.x = element_text(color="#333333", size=10, face="bold", margin = margin(20, 5, 5, 5)),
+        axis.title.y = element_text(color="#333333", size=10, face="bold", margin = margin(5, 20, 5, 5)),
+        legend.position="none",
+    ) + scale_fill_brewer(palette="BuPu")
+summary(m4)
 ```
+Dal quarto modello lineare troviamo un indice R^2 (~11%), osservando che la variabile popn è meno significativa rispetto alle precedenti.
 
+5) modello lineare tra hous e mort.
 ```{r, include = TRUE, echo = FALSE}
-densmodel <- lm(mort ~ educ+poor, data = pollution)
-summary(densmodel)
-ggplot(data = pollution, mapping = aes(educ, mort)) +
+m5 <- lm(mort ~ hous, data = pollution)
+ggplot(data = pollution, mapping = aes(hous, mort)) +
     geom_point(color="#0072B2") +
-    xlab("dens") +
-    ylab("Tasso mortalità") +
-  ggtitle("Scatterplot indice di dens - tasso mortalità")
+    xlab("% di case sane") +
+    ylab("Tasso di mortalità") +
+    ggtitle("Diagramma di dispersione % di case sane - tasso di mortalità") +
+    scale_fill_brewer(palette="Spectral")
+summary(m5)
+```
+Dal quinto modello lineare troviamo un indice R^2 (~17%), osservando che la variabile hous è significativa e quindi verrà tenuta in considerazione per un eventuale modello multivariato. 
 
+## Modelli lineari multivariati
+Concettualemente la nostra analisi si è divisa su due principali modelli, poichè data la complessità della variabile MORT sono stati adottati due approcci diversi per fare una più approfondità analisi della variabile.
+### Modello A
+Nel seguente modello viene analizzato l'aspetto sociale del dataset: si cerca dunque di spiegare la mortalità attraverso varie condizioni di vita, quali: la bassa educazione, la presenza di non bianchi, il tasso di povertà, la bassa percentuale di unità abitative sane e con tutti i servizi
+```{r, include = TRUE, echo = FALSE}
+v0=lm(pollution$mort~pollution$educ+pollution$nonw+pollution$poor+I(1/pollution$hous))
+summary(v0)
+
+v1=stepAIC(v0)
+summary(v1)
+
+ggplot(data = pollution, aes(x = nonw, y = mort)) +
+  geom_point(aes(size = poor, color = educ)) +
+  scale_color_manual(values = c("red", "yellow", "green")) +  # Specifica i colori per i fattori
+  labs(x = "Quantità di persone non w", y = "Mortalità")
+```
+\
+Notiamo però che non tutte le variabili sono significative per il modello difatti utilizzando stepAIC possiamo notare che il modello migliore è il seguente
+\
+Dal grafico si può notare che il tasso di povertà è fortemente legata alla mortalità, in quanto la densità della larghezza dei pallini è distribuita con un peso maggiore per valori alti di mortalità.\
+Inoltre si nota che la poca scolarizzazione di una metropoli influisce anch'essa in maniera antilineare alla mortalità. Infine si nota un forte legame tra nonw e mortalità, dovuta secondo noi, da fattori sociali non studiabili in questo dataset (eg. discriminazione razziale, arretratezza culturale ecc...).
+
+#### Studio dei quantili
+```{r, include = TRUE, echo = FALSE}
+par(mfrow=c(2,2))
+plot(v1)
+par(mfrow=c(1,1))
+```
+\
+Si può notare dal grafico dei residui che la gaussianità è rispettata abbastanza bene, escludendo alcuni valori anomali nelle code e non c'è un evidenza di pattern nei residui, infine sembra essere rispettata l'ipotesi di omoschedasticità.
+
+### Modello B
+\
+Il seguente modello prende in considerazioni le variabili riguardanti le sostanze inquinanti.\
+```{r, include = TRUE, echo = FALSE}
+m6 <- lm(mort ~ prec + so2 + I(1/nox) + I(1/hc), data = pollution)
+ggplot(data = pollution, mapping = aes(so2+I(1/nox)+I(1/hc), mort)) +
+    geom_point(color="#0072B2") +
+    xlab("Sostanze inquinanti") +
+    ylab("Tasso di mortalità") +
+    ggtitle("Diagramma di dispersione sostanze inquinanti - tasso di mortalità") +
+    scale_fill_brewer(palette="Spectral")
+summary(m6)
+par(mfrow=c(2,2))
+plot(m6)
+par(mfrow=c(1,1), col="#0072B2")
+```
+\
+Dal primo grafico possiamo notare l'assenza di pattern nei residui, inoltre si nota dal 2 grafico che il qqplot non è perfettamente fittando, dunque la gaussianità non è ampiamente rispettata. Possiamo, però notare dal 3 grafico che solo 3 quantili superano 1.96 il che apporta maggiore supporto alla tesi di gaussianità, anche se non è un parametro sufficiente. Infine si nota l'assenza di pattern nel grafico dei residui.  
+
+
+```{r, echo = F}
+
+v1=stepAIC(m6)
+plot(m6, which = c(1,2), col="#0072B2")
 ```
